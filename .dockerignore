@@ -1,0 +1,27 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node / frontend
+node_modules/
+dist/
+
+# Git
+.git/
+.gitignore
+
+# OS junk
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Large files
+*.zip
+*.csv
+*.h5.bak
+
+# Docker itself
+Dockerfile
