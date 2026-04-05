@@ -15,19 +15,19 @@ The project is divided into two main components:
 - **Backend (Server):** A Flask-based Python server handling the machine learning inference.
 - **Frontend (App):** A React/TypeScript application built with Vite, Tailwind CSS, and Shadcn UI.
 
-### 2.1 Backend Implementation ([Server/app.py](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/Server/app.py))
+### 2.1 Backend Implementation (Server/app.py)
 
-- **Face Detection:** Uses OpenCV's Haar Cascade classifier ([haarcascade\_frontalface\_default.xml](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/Server/src/haarcascade_frontalface_default.xml)) to locate faces in a frame.
+- **Face Detection:** Uses OpenCV's Haar Cascade classifier (haarcascade_frontalface_default.xml) to locate faces in a frame.
 - **Emotion Classification:** A Convolutional Neural Network (CNN) trained on the FER-2013 dataset. The model architecture consists of 4 convolutional layers, max-pooling, and dropout for regularization.
-- **Emotion Wheel Logic:** The [detector.py](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/Server/src/detector.py) script maps raw FER-2013 labels (Happy, Sad, etc.) into a more complex hierarchy:
+- **Emotion Wheel Logic:** The detector.py script maps raw FER-2013 labels (Happy, Sad, etc.) into a more complex hierarchy:
   - **Category:** Comfortable vs. Uncomfortable.
   - **Base Emotion:** 8 categories (Scared, Sad, Angry, Embarrassed, Happy, Loved, Confident, Neutral).
   - **Sub-Emotion:** Dynamic labels based on confidence thresholds (e.g., "Overwhelmed" vs. "Anxious").
 
-### 2.2 Frontend Implementation ([App/src/App.tsx](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/App/src/App.tsx))
+### 2.2 Frontend Implementation (App/App.tsx)
 
-- **Real-Time Feed:** Captures webcam frames using a custom hook ([useCamera.ts](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/App/src/hooks/useCamera.ts)).
-- **Emotion Display:** A sophisticated UI component ([EmotionDisplay.tsx](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/App/src/components/emotion/EmotionDisplay.tsx)) that features:
+- **Real-Time Feed:** Captures webcam frames using a custom hook (useCamera.ts).
+- **Emotion Display:** A sophisticated UI component (EmotionDisplay.tsx) that features:
   - **Skeleton State:** A "Scanning" mode while the system is looking for a face.
   - **Stats Highlight:** Primary and sub-emotion details with confidence percentages.
   - **Breakdown Bars:** A ranked list of all detected emotions with visual progress bars.
@@ -101,7 +101,7 @@ The backend returns a comprehensive JSON object that provides a deep analysis of
 | **fer13Label**          | `string` | The raw classification from the FER-2013 dataset (e.g., "Fear").                                      |
 | **wheelBaseListSorted** | `Array`  | A ranked list of all 8 base emotions with their individual confidence levels and active sub-emotions. |
 
-### 5.2 Frontend Result Visualization ([EmotionDisplay.tsx](file:///c%3A/Users/Asus/Desktop/project-hub-projects/Emotion-detection/App/src/components/emotion/EmotionDisplay.tsx))
+### 5.2 Frontend Result Visualization (EmotionDisplay.tsx)
 
 The frontend translates this raw data into an interactive and highly visual dashboard:
 
