@@ -19,7 +19,7 @@ model.add(Dense(1024, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(7, activation='softmax'))
 
-model.load_weights("src/model.h5")
+model.load_weights("src/models/fer.h5")
 
 face_cascade = cv2.CascadeClassifier(
     "src/haarcascade_frontalface_default.xml"
@@ -122,6 +122,50 @@ def get_wheel_base_list(preds: np.ndarray) -> list:
     return result
 
 
+def build_emotion_response(preds: np.ndarray) -> dict:
+    """Build unified API response from FER probabilities."""
+    max_index = int(np.argmax(preds))
+    fer13_label = FER13_LABELS[max_index]
+
+    # Get Level 2 list
+    wheel_base_list = get_wheel_base_list(preds)
+
+    # Top result = highest confidence wheel base
+    top = max(wheel_base_list, key=lambda x: x["confidence"])
+
+    return {
+        # ── Primary detection ─────────────────────────────────
+        "category": top["category"],
+        "emotion": top["wheelBase"],
+        "subEmotion": top["activeSub"],
+        "confidence": top["confidence"],
+        "fer13Label": fer13_label,
+
+        # ── Level 2: all 8 wheel base emotions ────────────────
+        # In fixed wheel order (Uncomfortable → Comfortable)
+        "wheelBaseList": wheel_base_list,
+
+        # ── Level 2: sorted by confidence (for ranked display) ─
+        "wheelBaseListSorted": sorted(
+            wheel_base_list,
+            key=lambda x: x["confidence"],
+            reverse=True
+        ),
+    }
+
+
+def empty_emotion_response() -> dict:
+    return {
+        "category": "None",
+        "emotion": "No Face",
+        "subEmotion": "None",
+        "confidence": 0.0,
+        "fer13Label": "No Face",
+        "wheelBaseList": [],
+        "wheelBaseListSorted": [],
+    }
+
+
 def predict_emotion(frame: np.ndarray) -> dict:
     gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
@@ -132,43 +176,90 @@ def predict_emotion(frame: np.ndarray) -> dict:
         roi = roi / 255.0
         roi = roi.reshape(1, 48, 48, 1)
 
-        preds      = model.predict(roi, verbose=0)[0]
-        max_index  = int(np.argmax(preds))
-        fer13_label = FER13_LABELS[max_index]
-        confidence  = float(preds[max_index]) * 100
+        preds = model.predict(roi, verbose=0)[0]
+        return build_emotion_response(preds)
 
-        # Get Level 2 list
-        wheel_base_list = get_wheel_base_list(preds)
+    return empty_emotion_response()
 
-        # Top result = highest confidence wheel base
-        top = max(wheel_base_list, key=lambda x: x["confidence"])
 
-        return {
-            # ── Primary detection ─────────────────────────────────
-            "category":   top["category"],
-            "emotion":    top["wheelBase"],
-            "subEmotion": top["activeSub"],
-            "confidence": top["confidence"],
-            "fer13Label": fer13_label,
+def predict_video_emotion(video_path: str, frame_step: int = 1) -> dict:
+    """
+    Predict an averaged emotion for an entire video clip.
+    Samples every `frame_step` frames to reduce compute cost.
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return empty_emotion_response()
 
-            # ── Level 2: all 8 wheel base emotions ────────────────
-            # In fixed wheel order (Uncomfortable → Comfortable)
-            "wheelBaseList": wheel_base_list,
+    frame_count = 0
+    sampled_frame_count = 0
+    valid_face_frames = 0
+    preds_sum = np.zeros(len(FER13_LABELS), dtype=np.float64)
+    frame_results = []
 
-            # ── Level 2: sorted by confidence (for ranked display) ─
-            "wheelBaseListSorted": sorted(
-                wheel_base_list,
-                key=lambda x: x["confidence"],
-                reverse=True
-            ),
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+
+        frame_count += 1
+        if frame_count % frame_step != 0:
+            continue
+        sampled_frame_count += 1
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        if len(faces) == 0:
+            frame_results.append({
+                "frameIndex": frame_count,
+                "hasFace": False,
+                "emotion": "No Face",
+                "subEmotion": "None",
+                "confidence": 0.0,
+                "fer13Label": "No Face",
+            })
+            continue
+
+        # Use largest face in frame
+        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+        roi = gray[y:y+h, x:x+w]
+        roi = cv2.resize(roi, (48, 48))
+        roi = roi / 255.0
+        roi = roi.reshape(1, 48, 48, 1)
+
+        preds = model.predict(roi, verbose=0)[0]
+        preds_sum += preds
+        valid_face_frames += 1
+        frame_response = build_emotion_response(preds)
+        frame_results.append({
+            "frameIndex": frame_count,
+            "hasFace": True,
+            "emotion": frame_response["emotion"],
+            "subEmotion": frame_response["subEmotion"],
+            "confidence": frame_response["confidence"],
+            "fer13Label": frame_response["fer13Label"],
+        })
+
+    cap.release()
+
+    if valid_face_frames == 0:
+        result = empty_emotion_response()
+        result["videoMeta"] = {
+            "totalFramesRead": frame_count,
+            "frameStep": frame_step,
+            "sampledFrames": sampled_frame_count,
+            "validFaceFrames": valid_face_frames,
         }
+        result["frameResults"] = frame_results
+        return result
 
-    return {
-        "category":            "None",
-        "emotion":             "No Face",
-        "subEmotion":          "None",
-        "confidence":          0.0,
-        "fer13Label":          "No Face",
-        "wheelBaseList":       [],
-        "wheelBaseListSorted": [],
+    avg_preds = preds_sum / valid_face_frames
+    result = build_emotion_response(avg_preds)
+    result["videoMeta"] = {
+        "totalFramesRead": frame_count,
+        "frameStep": frame_step,
+        "sampledFrames": sampled_frame_count,
+        "validFaceFrames": valid_face_frames,
     }
+    result["frameResults"] = frame_results
+    return result

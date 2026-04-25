@@ -1,8 +1,11 @@
 from flask import Flask, render_template, request, jsonify ,send_from_directory
 import cv2
 import numpy as np
-from src.detector import predict_emotion
+from src.detector import predict_emotion, predict_video_emotion
 from flask_cors import CORS
+from src.speech_service import process_audio
+import os
+import uuid
 
 
 app = Flask(__name__, static_folder="static", static_url_path="")
@@ -29,6 +32,51 @@ def predict():
         return jsonify(result)
     else:
         return jsonify({"result": result})
+
+@app.route("/predict-audio", methods=["POST"])
+def predict_audio():
+    file = request.files.get("audio")
+
+    if not file:
+        return jsonify({"error": "No file"}), 400
+
+    os.makedirs("temp", exist_ok=True)
+
+    uid = str(uuid.uuid4())
+    webm_path = f"temp/{uid}.webm"
+    wav_path = f"temp/{uid}.wav"
+
+    file.save(webm_path)
+
+    try:
+        result = process_audio(webm_path, wav_path)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+    return jsonify(result)
+
+
+@app.route("/predict-video", methods=["POST"])
+def predict_video():
+    file = request.files.get("video")
+
+    if not file:
+        return jsonify({"error": "No video file"}), 400
+
+    os.makedirs("temp", exist_ok=True)
+
+    uid = str(uuid.uuid4())
+    video_path = f"temp/{uid}.webm"
+    file.save(video_path)
+
+    try:
+        result = predict_video_emotion(video_path)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if os.path.exists(video_path):
+            os.remove(video_path)
 
 
 if __name__ == "__main__":
