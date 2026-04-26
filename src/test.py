@@ -1,4 +1,3 @@
-import hsemotion, os
-path = os.path.join(os.path.dirname(hsemotion.__file__), "facial_emotions.py")
-with open(path) as f:
-    print(f.read())
+from voice_detector import predict_voice_emotion
+result = predict_voice_emotion("src/test/test1.wav")
+print(result)

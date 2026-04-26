@@ -3,7 +3,11 @@ import cv2
 import numpy as np
 from src.detector import predict_emotion, predict_video_emotion
 from flask_cors import CORS
-from src.speech_service import process_audio
+try:
+    from src.voice_detector import predict_voice_emotion
+except ModuleNotFoundError:
+    # Fallback for runtimes where src is not on import path.
+    from voice_detector import predict_voice_emotion
 import os
 import uuid
 
@@ -44,16 +48,17 @@ def predict_audio():
 
     uid = str(uuid.uuid4())
     webm_path = f"temp/{uid}.webm"
-    wav_path = f"temp/{uid}.wav"
 
     file.save(webm_path)
 
     try:
-        result = process_audio(webm_path, wav_path)
+        result = predict_voice_emotion(webm_path)
+        return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)})
-
-    return jsonify(result)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if os.path.exists(webm_path):
+            os.remove(webm_path)
 
 
 @app.route("/predict-video", methods=["POST"])
