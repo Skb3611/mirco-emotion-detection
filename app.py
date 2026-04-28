@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from src.detector import predict_emotion, predict_video_emotion
 from flask_cors import CORS
+from src.fusion import fuse_audio_video
 try:
     from src.voice_detector import predict_voice_emotion
 except ModuleNotFoundError:
@@ -10,6 +11,15 @@ except ModuleNotFoundError:
     from voice_detector import predict_voice_emotion
 import os
 import uuid
+
+EMPTY_MODALITY_RESPONSE = {
+    "category": "None",
+    "emotion": "None",
+    "subEmotion": "None",
+    "confidence": 0.0,
+    "wheelBaseList": [],
+    "wheelBaseListSorted": [],
+}
 
 
 app = Flask(__name__, static_folder="static", static_url_path="")
@@ -82,6 +92,38 @@ def predict_video():
     finally:
         if os.path.exists(video_path):
             os.remove(video_path)
+
+@app.route("/predict-multimodal", methods=["POST"])
+def predict_multimodal():
+    file = request.files.get("media")
+    if not file:
+        return jsonify({"error": "No media file"}), 400
+
+    os.makedirs("temp", exist_ok=True)
+    uid = str(uuid.uuid4())
+    _, ext = os.path.splitext(file.filename or "")
+    ext = ext if ext else ".webm"
+    media_path = f"temp/{uid}{ext}"
+    file.save(media_path)
+
+    try:
+        audio_result = predict_voice_emotion(media_path)
+        video_result = predict_video_emotion(media_path)
+        if audio_result.get("category") == "None":
+            audio_result = dict(EMPTY_MODALITY_RESPONSE)
+        if video_result.get("category") == "None":
+            video_result = dict(EMPTY_MODALITY_RESPONSE)
+        combined_result = fuse_audio_video(audio_result, video_result)
+        return jsonify({
+            "audioResult": audio_result,
+            "videoResult": video_result,
+            "combinedResult": combined_result,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if os.path.exists(media_path):
+            os.remove(media_path)
 
 
 if __name__ == "__main__":

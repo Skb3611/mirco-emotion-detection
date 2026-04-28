@@ -2,52 +2,49 @@ import numpy as np
 import librosa
 import torch
 import warnings
-from transformers import Wav2Vec2ForSequenceClassification, Wav2Vec2Processor
+from transformers import AutoModelForAudioClassification, Wav2Vec2Processor
 
 # ── Model Setup ───────────────────────────────────────────────────
-# Trained on RAVDESS dataset
-print("Loading voice emotion model...")
+# Dpngtm — trained on ~12,000 files from multiple datasets, ~80% accuracy
+# Labels: neutral, happy, sad, angry, fearful, disgust, surprised
+# (calm merged into neutral)
+print("Loading voice emotion model (Dpngtm multi-dataset)...")
 
 _processor = Wav2Vec2Processor.from_pretrained(
-    "AventIQ-AI/wav2vec2-base_speech_emotion_recognition"
+    "Dpngtm/wav2vec2-emotion-recognition"
 )
-_model = Wav2Vec2ForSequenceClassification.from_pretrained(
-    "AventIQ-AI/wav2vec2-base_speech_emotion_recognition"
+_model = AutoModelForAudioClassification.from_pretrained(
+    "Dpngtm/wav2vec2-emotion-recognition"
 )
 _model.eval()
-_model = _model.float()   # fix HalfTensor vs FloatTensor mismatch
-print("Voice emotion model loaded")
+_model = _model.float()
+print("✓ Voice emotion model loaded")
 
 SAMPLE_RATE = 16000
 
-# ── RAVDESS standard label order ─────────────────────────────────
-# Model config returns LABEL_0..7 with no names.
-# Hardcoded from official model card and RAVDESS dataset encoding:
-# 01=neutral, 02=calm, 03=happy, 04=sad, 05=angry, 06=fearful, 07=disgust, 08=surprised
-RAVDESS_LABELS = [
-    "neutral",    # LABEL_0
-    "calm",       # LABEL_1
-    "happy",      # LABEL_2
-    "sad",        # LABEL_3
-    "angry",      # LABEL_4
-    "fearful",    # LABEL_5
-    "disgust",    # LABEL_6
-    "surprised",  # LABEL_7
+# ── Labels — read from model config ──────────────────────────────
+# Dpngtm properly saves id2label so we read it directly
+VOICE_LABELS = [
+    _model.config.id2label[i]
+    for i in range(_model.config.num_labels)
 ]
+print("Labels:", VOICE_LABELS)
 
-# ── RAVDESS → Wheel base mapping ──────────────────────────────────
+# ── Label → Wheel base mapping ────────────────────────────────────
 VOICE_TO_WHEEL_BASE = {
     "neutral":   "Neutral",
-    "calm":      "Neutral",      # calm + neutral → Neutral (summed)
+    "calm":      "Neutral",      # in case calm appears
     "happy":     "Happy",
     "sad":       "Sad",
     "angry":     "Angry",
     "fearful":   "Scared",
+    "fear":      "Scared",
     "disgust":   "Embarrassed",
-    "surprised": "Happy",        # no wheel match → nearest
+    "surprised": "Happy",
+    "surprise":  "Happy",
 }
 
-# ── RAVDESS → Category mapping ────────────────────────────────────
+# ── Label → Category mapping ──────────────────────────────────────
 VOICE_TO_CATEGORY = {
     "neutral":   "Comfortable",
     "calm":      "Comfortable",
@@ -55,8 +52,10 @@ VOICE_TO_CATEGORY = {
     "sad":       "Uncomfortable",
     "angry":     "Uncomfortable",
     "fearful":   "Uncomfortable",
+    "fear":      "Uncomfortable",
     "disgust":   "Uncomfortable",
     "surprised": "Comfortable",
+    "surprise":  "Comfortable",
 }
 
 # ── Sub-emotion thresholds (identical to face detector) ───────────
@@ -92,15 +91,10 @@ def get_active_sub(base: str, confidence: float) -> str:
 
 
 def get_wheel_base_list(label_scores: dict) -> list:
-    """
-    Build Level 2 list — all 8 wheel base emotions with confidence.
-    happy + surprised → Happy (summed)
-    neutral + calm    → Neutral (summed)
-    """
     base_conf = {base: 0.0 for _, base in WHEEL_ORDER}
 
     for voice_label, conf in label_scores.items():
-        wheel_base = VOICE_TO_WHEEL_BASE.get(voice_label)
+        wheel_base = VOICE_TO_WHEEL_BASE.get(voice_label.lower())
         if wheel_base and wheel_base in base_conf:
             base_conf[wheel_base] += conf * 100
 
@@ -170,18 +164,14 @@ def predict_voice_emotion(audio_path: str) -> dict:
     This is the only public function — call this from your API.
     """
     try:
-        # Load + resample to 16kHz + mono.
-        # Incoming chunks are webm, so librosa may use audioread fallback; suppress known non-fatal warning spam.
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="PySoundFile failed\\. Trying audioread instead\\.")
             warnings.filterwarnings("ignore", message="librosa\\.core\\.audio\\.__audioread_load")
             audio, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
 
-        # Reject silent audio
         if np.max(np.abs(audio)) < 0.01:
             return empty_voice_response("Silent audio")
 
-        # Run model
         inputs = _processor(
             audio,
             sampling_rate=SAMPLE_RATE,
@@ -197,10 +187,9 @@ def predict_voice_emotion(audio_path: str) -> dict:
                 outputs.logits, dim=-1
             )[0].numpy()
 
-        # Map index → emotion name using RAVDESS standard order
         label_scores = {
-            RAVDESS_LABELS[i]: float(probs[i])
-            for i in range(len(RAVDESS_LABELS))
+            VOICE_LABELS[i]: float(probs[i])
+            for i in range(len(VOICE_LABELS))
         }
 
         return build_voice_response(label_scores)
