@@ -147,13 +147,15 @@ fer2013.csv
 plot.png
 
 # Model files (keep example but ignore trained models)
-models/
-*.h5
-*.hdf5
-*.pb
-*.ckpt
-*.pth
-*.pt
+# models/
+# *.h5
+# *.hdf5
+# *.pb
+# *.ckpt
+# *.pth
+# *.pt
+!models/
+!models/**
 
 # TensorBoard
 runs/
