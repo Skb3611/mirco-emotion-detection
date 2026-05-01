@@ -156,6 +156,8 @@ plot.png
 # *.pt
 !models/
 !models/**
+!src/models/
+!src/models/**
 
 # TensorBoard
 runs/
