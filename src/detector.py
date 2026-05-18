@@ -5,7 +5,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
-from facenet_pytorch import MTCNN
+from src.face.mediapipe_face import expand_box_for_emotion, get_face_processor
 
 
 # ───────────────────────────────────────────────────────────────
@@ -69,13 +69,10 @@ model.eval()
 
 
 # ───────────────────────────────────────────────────────────────
-# Face detector (boxes only; preprocessing matches EmotiEffLib)
+# Face detector (MediaPipe Face Mesh — landmarks + robust crops)
 # ───────────────────────────────────────────────────────────────
 
-mtcnn = MTCNN(
-    keep_all=False,
-    device=DEVICE,
-)
+_face_processor = get_face_processor()
 
 
 # ───────────────────────────────────────────────────────────────
@@ -92,27 +89,18 @@ IMAGE_TRANSFORM = transforms.Compose([
 ])
 
 
-def _expand_box(box, width: int, height: int, margin: int) -> tuple[int, int, int, int]:
-    x1, y1, x2, y2 = box
-    x1 = max(0, int(x1) - margin)
-    y1 = max(0, int(y1) - margin)
-    x2 = min(width, int(x2) + margin)
-    y2 = min(height, int(y2) + margin)
-    return x1, y1, x2, y2
-
-
 def _face_tensor_from_rgb(rgb: np.ndarray) -> torch.Tensor | None:
-    boxes, _ = mtcnn.detect(rgb)
-    if boxes is None or len(boxes) == 0:
+    face = _face_processor.process_largest(rgb)
+    if face is None:
         return None
 
     h, w = rgb.shape[:2]
-    x1, y1, x2, y2 = _expand_box(boxes[0], w, h, FACE_MARGIN)
+    x1, y1, x2, y2 = expand_box_for_emotion(face.bbox, w, h)
     if x2 <= x1 or y2 <= y1:
         return None
 
-    face = rgb[y1:y2, x1:x2]
-    return IMAGE_TRANSFORM(Image.fromarray(face))
+    crop = rgb[y1:y2, x1:x2]
+    return IMAGE_TRANSFORM(Image.fromarray(crop))
 
 
 def _predict_probs(rgb: np.ndarray) -> np.ndarray | None:

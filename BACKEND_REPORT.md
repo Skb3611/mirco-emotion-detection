@@ -30,8 +30,10 @@ The backend returns structured JSON including:
 
 From `requirements.txt`:
 
-- `opencv-python` (Haar cascade face detection, frame extraction)
-- `tensorflow` / `keras` (FER CNN model inference)
+- `opencv-python` (Frame extraction, image processing)
+- `mediapipe` (MediaPipe Face Mesh for robust face detection and landmarks)
+- `torch` + `torchvision` (PyTorch EmotiEffLib emotion classification)
+- `tensorflow` / `keras` (Legacy FER CNN model inference in `src/emotions.py`)
 - `torch` + `transformers` (Wav2Vec2 audio classification)
 - `librosa` (audio decoding/resampling)
 - `numpy` (score aggregation and numeric operations)
@@ -42,6 +44,7 @@ From `Dockerfile`:
 
 - `ffmpeg`
 - `libgl1`, `libglib2.0-0` (OpenCV runtime support)
+- `libgles2`, `libegl1` (MediaPipe Tasks runtime support)
 
 ---
 

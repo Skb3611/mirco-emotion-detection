@@ -8,12 +8,13 @@ ENV PYTHONUNBUFFERED=1
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for OpenCV
-RUN apt-get update && apt-get install -y ffmpeg 
-
+# Install system dependencies for OpenCV and MediaPipe
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     libgl1 \
     libglib2.0-0 \
+    libgles2 \
+    libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency file

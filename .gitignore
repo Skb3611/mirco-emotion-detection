@@ -179,6 +179,10 @@ tensorboard_logs/
 ehthumbs.db
 Thumbs.db
 
+# MediaPipe Tasks models (auto-downloaded)
+src/face/models/*.task
+src/face/models/*.tflite
+
 # Temporary files
 *.tmp
 *.temp
