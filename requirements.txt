@@ -1,15 +1,20 @@
-numpy>=1.26.0
-opencv-python>=4.8.1.78
-tensorflow>=2.16.0
-keras>=3.0.0
+numpy==1.26.4
+opencv-python==4.8.1.78
+
 flask
 flask-cors
 
-torch
-torchaudio
-librosa
-transformers
-sounddevice
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+
+timm==0.9.12
+
+facenet-pytorch==2.6.0
+
+pillow
 scipy
-torch
-torchvision
+librosa
+sounddevice
+
+transformers==4.38.2
