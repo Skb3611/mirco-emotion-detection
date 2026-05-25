@@ -81,7 +81,9 @@ def predict_video():
     os.makedirs("temp", exist_ok=True)
 
     uid = str(uuid.uuid4())
-    video_path = f"temp/{uid}.webm"
+    _, ext = os.path.splitext(file.filename or "")
+    ext = ext if ext else ".webm"
+    video_path = f"temp/{uid}{ext}"
     file.save(video_path)
 
     try:
